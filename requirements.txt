@@ -1,0 +1,11 @@
+requests
+pillow
+python-dotenv
+beautifulsoup4
+pandas
+playwright
+ddddocr
+rookiepy
+easyocr
+numpy
+opencv-python

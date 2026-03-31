@@ -1,0 +1,12 @@
+# 环境与缓存
+.venv/
+__pycache__/
+.idea/
+
+# 敏感信息与状态
+.env
+state.json
+credentials.json
+
+# 爬虫输出的业务数据
+/outputs/
