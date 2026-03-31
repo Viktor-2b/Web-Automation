@@ -137,6 +137,100 @@ def fetch_video_list(canvas_course_id, headers):
         return None
 
 
+def get_mp4_video(video_info, save_dir, headers):
+    """请求视频真实地址，支持多视角(讲台/PPT)直接下载大文件"""
+    session_name = sanitize_filename(video_info.get('videoName', '未知节次'))
+    video_id = video_info.get('videoId')
+
+    print(f"🎬 正在解析视频真实地址: {session_name}")
+    url = "https://v.sjtu.edu.cn/jy-application-canvas-sjtu/directOnDemandPlay/getVodVideoInfos"
+
+    # 使用 files 参数格式构造 multipart/form-data，格式为: "字段名": (文件名, "值")。这里不需要传文件，所以文件名写 None
+    multipart_data = {
+        "playTypeHls": (None, "true"),
+        "isAudit": (None, "true"),
+        "id": (None, video_id)
+    }
+
+    try:
+        req_headers = headers.copy()
+        # 必须把它删掉，让 requests 底层自动生成带有 Boundary 的 Content-Type
+        if "Content-Type" in req_headers:
+            del req_headers["Content-Type"]
+
+        # 发送请求时，使用 files=multipart_data
+        resp = requests.post(url, headers=req_headers, files=multipart_data)
+        resp.raise_for_status()
+        json_resp = resp.json()
+        data = json_resp.get('data') or {} # 防御null
+        streams = data.get('videoPlayResponseVoList', [])
+
+        if not streams:
+            msg = json_resp.get('message')
+            print(f"  -> ❌ 未找到视频流数据 (服务器返回: {msg})")
+            return
+
+        # 遍历所有视角（通常一个是老师，一个是电脑屏幕）
+        for idx, stream in enumerate(streams):
+            # 优先获取高清(Hdv)，没有就拿流畅(Fluency)
+            mp4_url = stream.get('rtmpUrlHdv') or stream.get('rtmpUrlFluency')
+            if not mp4_url:
+                continue
+
+            # 如果有多个视角，加个后缀区分，避免文件名冲突
+            suffix = f"_视角{idx + 1}" if len(streams) > 1 else ""
+            mp4_filepath = os.path.join(save_dir, f"{session_name}{suffix}.mp4")
+
+            # 防重复下载
+            if os.path.exists(mp4_filepath):
+                print(f"  -> ⏭️ 视频已存在，跳过: {os.path.basename(mp4_filepath)}")
+                continue
+
+            print(f"  -> ⬇️ 正在下载视频流 {idx + 1}/{len(streams)} ...")
+            # 不要带 Token，不要带复杂的 Cookie，只带浏览器标识和播放页面的来源证明
+            cdn_headers = {
+                "User-Agent": USER_AGENT,
+                "Referer": "https://v.sjtu.edu.cn/"  # 告诉 CDN：我是从交大视频网点进来的
+            }
+
+            # 记录开始时间，用于计算网速
+            start_time = time.time()
+
+            # 使用 stream=True 流式下载大文件，防止撑爆内存
+            with requests.get(mp4_url, headers=cdn_headers, stream=True) as r:
+                r.raise_for_status()
+                # 获取文件总大小（字节），用来计算进度
+                total_size = int(r.headers.get('content-length', 0))
+                downloaded_size = 0
+                with open(mp4_filepath, 'wb') as f:
+                    # 每次拉取 1MB 的数据块写入硬盘
+                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded_size += len(chunk)
+
+                            elapsed_time = time.time() - start_time
+                            # 计算速度 (MB/s)
+                            speed = (downloaded_size / 1048576) / elapsed_time if elapsed_time > 0 else 0
+
+                            if total_size > 0:
+                                mb_down = downloaded_size / 1048576
+                                mb_total = total_size / 1048576
+                                percent = (downloaded_size / total_size) * 100
+                                # 使用 \r 回到行首，使用 flush=True 强制刷新屏幕
+                                print(f"\r     ... 进度: {mb_down:.1f} MB / {mb_total:.1f} MB ({percent:.1f}%) | 速度: {speed:.1f} MB/s",
+                                    end="", flush=True)
+                            else:
+                                mb_down = downloaded_size / 1048576
+                                print(f"\r     ... 已下载: {mb_down:.1f} MB | 速度: {speed:.1f} MB/s",
+                                      end="",flush=True)
+
+                # 这里的 \n 会把光标推到下一行，保留最后 100% 的进度条记录，并打印成功提示
+                print(f"\n  -> ✅ 视频保存成功: {os.path.basename(mp4_filepath)}")
+
+    except Exception as exc:
+        print(f"  -> ❌ 视频下载失败: {exc}")
+
 def get_voice_transcript(video_info, save_dir, headers):
     """为单个视频下载语音文本"""
     session_name = sanitize_filename(video_info.get('videoName', '未知节次'))
@@ -159,7 +253,9 @@ def get_voice_transcript(video_info, save_dir, headers):
     try:
         resp = requests.post(url, headers=headers, json=payload)
         resp.raise_for_status()
-        transcript_list = resp.json().get('data', {}).get('afterAssemblyList', [])
+        json_resp = resp.json()
+        data = json_resp.get('data') or {} # 防御null
+        transcript_list = data.get('afterAssemblyList', [])
         if not transcript_list:
             print("  -> ⚠️ 本节次暂无语音识别数据")
             return
@@ -193,7 +289,8 @@ def get_ppt_and_make_pdf(video_info, save_dir, headers):
     try:
         resp = requests.get(url, headers=headers)
         resp.raise_for_status()
-        ppt_list = resp.json().get('data', [])
+        json_resp = resp.json()
+        ppt_list = json_resp.get('data') or [] # 防御null
 
         if not ppt_list:
             print("  -> ⚠️ 该节次没有PPT。")
@@ -295,6 +392,7 @@ def download_course_materials():
         print(f"⏳ 开始处理第 {i + 1}/{len(course_video_list)} 个视频: {course_session_name}")
         print("=" * 60)
 
+        get_mp4_video(video, course_dir, final_headers)
         get_voice_transcript(video, course_dir, final_headers)
         get_ppt_and_make_pdf(video, course_dir, final_headers)
 
