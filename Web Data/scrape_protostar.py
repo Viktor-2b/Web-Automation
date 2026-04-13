@@ -9,7 +9,7 @@ BASE_URL = "https://exploit.education"
 # Protostar 题目列表页
 PROTOSTAR_URL = f"{BASE_URL}/protostar/"
 # 保存源码的本地目录
-SAVE_DIR = "/outputs/protostar_source_codes"
+SAVE_DIR = "../outputs/protostar_source_codes"
 
 
 # --- 主爬虫逻辑 ---

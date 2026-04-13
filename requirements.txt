@@ -9,3 +9,4 @@ rookiepy
 easyocr
 numpy
 opencv-python
+selenium
