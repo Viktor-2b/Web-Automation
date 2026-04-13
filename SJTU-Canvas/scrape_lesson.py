@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from utils.config import USER_AGENT, CREDENTIALS_FILE
 from utils.get_credentials import auto_sniff_credentials
 
-BASE_SAVE_DIR = "./outputs/course_records"
+BASE_SAVE_DIR = "../outputs/course_records"
 
 def load_credentials():
     """读取本地 JSON 缓存的凭证"""

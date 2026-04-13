@@ -4,9 +4,9 @@ __pycache__/
 .idea/
 
 # 敏感信息与状态
-.env
-state.json
-credentials.json
+SJTU-Canvas/.env
+SJTU-Canvas/state.json
+SJTU-Canvas/credentials.json
 
 # 爬虫输出的业务数据
 /outputs/
