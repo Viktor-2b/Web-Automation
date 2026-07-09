@@ -10,3 +10,16 @@ easyocr
 numpy
 opencv-python
 selenium
+canvasapi
+openpyxl
+python-docx
+PyMuPDF
+zai-sdk
+rarfile
+google-genai
+matplotlib
+pywin32
+mss
+opencv-python
+pytesseract
+keyboard

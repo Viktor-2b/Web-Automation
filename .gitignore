@@ -8,5 +8,8 @@ Canvas/.env
 Canvas/state.json
 Canvas/credentials.json
 
+lib
+Canvas/gemini_profile
+
 # 爬虫输出的业务数据
 /outputs/
